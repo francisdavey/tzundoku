@@ -88,6 +88,66 @@ class useDoku(Resource):
         db.session.commit()
         return doku, 201
 
+
+item_fields={
+    'type' : fields.String,
+#    'author' : fields.String,
+    'title' : fields.String,
+    'id' : fields.Integer
+}
+
+item_parser=reqparse.RequestParser()
+item_parser.add_argument('id', type=int)
+item_parser.add_argument('title', type=str)
+#item_parser.add_argument('author', type=str)
+item_parser.add_argument('type', type=str)
+item_parser.add_argument('year', type=str)
+
+
+class getItems(Resource):
+    @marshal_with(item_fields)
+    def get(self):
+        args=item_parser.parse_args()
+        result=models.Item.query
+        for field in item_fields:
+            value=getattr(args, field)
+            if value is not None:
+                print("Filtering on {} : {}".format(field, value))
+                result=result.filter_by(**{field : value})
+        
+        items=result.all()
+
+        return items
+
+class useItem(Resource):
+    def delete(self):
+        args=item_parser.parse_args()
+        id=args.id
+        items=models.Item.query.filter_by(id=id).all()
+        if len(items)==0:
+            return make_error(404, 101, "Item with id {} not found".format(id))
+        elif len(items)==1:
+            item=items[0]
+            item.delete()
+            return marshal(item, item_fields)
+        else:
+            return make_error(404, 102, "There are more than one items with id {}".format(id))
+
+    @marshal_with(item_fields)
+    def put(self):
+        args=item_parser.parse_args()
+        arg_dict={}
+        for field in item_fields:
+            value=getattr(args, field)
+            if value is not None:
+                arg_dict.update({field : value})
+        item=models.Item(**arg_dict)
+        db.session.add(item)
+        db.session.commit()
+        return item, 201
+
+
+
 def make_url(s):
     return "/".join([API_PATH, "v{}".format(API_VERSION), s])
 
@@ -95,3 +155,5 @@ tzundoku_api.add_resource(getUsers, make_url('users'))
 tzundoku_api.add_resource(getUser, make_url('users/<string:username>'))
 tzundoku_api.add_resource(getDokus, make_url('dokus'))
 tzundoku_api.add_resource(useDoku, make_url('doku'))
+tzundoku_api.add_resource(getItems, make_url('items'))
+tzundoku_api.add_resource(useItem, make_url('item'))
